@@ -1,26 +1,75 @@
-version: '3.8'
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: mysql_container
+  mysql_cadastramento:
+    image: mysql:5.7
+    container_name: mysql_cadastramento
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: banco_teste
-    ports:
-      - "3306:3306"
+      MYSQL_DATABASE: banco_cadastramento
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./banco_teste.sql:/docker-entrypoint-initdb.d/banco_teste.sql
+    - ./ServicoCadastramento/banco_cadastramento.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
+
+  mysql_pagamentos:
+    image: mysql:5.7
+    container_name: mysql_pagamentos
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: banco_pagamentos
+    volumes:
+    - ./ServicoPagamentos/banco_pagamentos.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
 
   rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rabbitmq_container
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-volumes:
-  mysql_data:
-  rabbitmq_data:
+  servicocadastramento:
+    build: ./ServicoCadastramento
+    container_name: servicocadastramento
+    ports:
+      - '3000:3000'
+    depends_on:
+      - mysql_cadastramento
+      - rabbitmq
+    networks:
+      - app-network
+
+  servicopagamentos:
+    build: ./ServicoPagamentos
+    container_name: servicopagamentos
+    ports:
+      - '4000:4000'
+    depends_on:
+      - mysql_pagamentos
+      - rabbitmq
+    networks:
+      - app-network
+
+  servicoassinaturasvalidas:
+    build: ./ServicoAssinaturasValidas
+    container_name: servicoassinaturasvalidas
+    ports:
+      - '5000:5000'
+    depends_on:
+      - servicocadastramento
+      - rabbitmq
+    networks:
+      - app-network
+
+networks:
+  app-network:
